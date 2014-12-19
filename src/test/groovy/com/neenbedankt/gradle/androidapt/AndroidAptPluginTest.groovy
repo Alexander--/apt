@@ -1,6 +1,7 @@
 package com.neenbedankt.gradle.androidapt
 
 import org.gradle.api.Project
+import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.Test
 
@@ -19,21 +20,21 @@ class AndroidAptPluginTest {
     @Test
     public void testProjectAptDependency() {
         Project root = ProjectBuilder.builder().build();
-        Project testProject = ProjectBuilder.builder().withName(":test").withParent(root).build();
+        Project testProject = ProjectBuilder.builder().withParent(root).build();
         testProject.apply plugin: 'java'
         Project p = ProjectBuilder.builder().withParent(root).build()
-        p.apply plugin: 'android'
+        p.apply plugin: 'com.android.application'
         p.apply plugin: 'android-apt'
         p.dependencies {
             apt testProject
         }
         p.android {
-            compileSdkVersion 19
-            buildToolsVersion "19.1"
+            compileSdkVersion 21
+            buildToolsVersion "21.1.1"
 
             defaultConfig {
                 minSdkVersion 14
-                targetSdkVersion 19
+                targetSdkVersion 21
                 versionCode 1
                 versionName "1.0"
             }
@@ -48,10 +49,10 @@ class AndroidAptPluginTest {
     @Test
     public void testProjectandroidTestAptDependency() {
         Project root = ProjectBuilder.builder().build();
-        Project testProject = ProjectBuilder.builder().withName(":test").withParent(root).build();
+        Project testProject = ProjectBuilder.builder().withParent(root).build();
         testProject.apply plugin: 'java'
         Project p = ProjectBuilder.builder().withParent(root).build()
-        p.apply plugin: 'android'
+        p.apply plugin: 'com.android.application'
         p.apply plugin: 'android-apt'
         p.repositories {
             mavenCentral()
@@ -60,12 +61,12 @@ class AndroidAptPluginTest {
             androidTestApt testProject
         }
         p.android {
-            compileSdkVersion 19
-            buildToolsVersion "19.1"
+            compileSdkVersion 21
+            buildToolsVersion "21.1.1"
 
             defaultConfig {
                 minSdkVersion 14
-                targetSdkVersion 19
+                targetSdkVersion 21
                 versionCode 1
                 versionName "1.0"
             }
@@ -78,6 +79,46 @@ class AndroidAptPluginTest {
                 assert !v.testVariant.javaCompile.options.compilerArgs.empty
             }
         }
+        println "Variants"
+    }
+
+    @Test
+    public void unitTestOk() {
+        Project root = ProjectBuilder.builder().build();
+        Project testProject = ProjectBuilder.builder().withParent(root).build();
+        testProject.apply plugin: 'java'
+        Project p = ProjectBuilder.builder().withParent(root).build()
+
+        p.apply plugin: 'com.android.application'
+        p.repositories {
+            mavenCentral()
+        }
+        p.android {
+            compileSdkVersion 21
+            buildToolsVersion "21.1.1"
+
+            defaultConfig {
+                applicationId "com.example"
+                minSdkVersion 14
+                targetSdkVersion 21
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+
+        p.apply plugin: 'android-unit-test'
+        p.apply plugin: 'android-apt'
+
+        p.dependencies {
+            testAptCompile testProject
+        }
+
+        p.evaluate()
+        println "Variants"
+        println p.configurations
+
+        // no test for actual functionality, because still unsure, how come it ever works :(
+
         println "Variants"
     }
 }

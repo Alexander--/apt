@@ -3,8 +3,12 @@ package com.neenbedankt.gradle.androidapt
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.ProjectConfigurationException
+import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.invocation.Gradle
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
+import org.gradle.api.tasks.compile.JavaCompile
 
 class AndroidAptPlugin implements Plugin<Project> {
     void apply(Project project) {
@@ -16,12 +20,25 @@ class AndroidAptPlugin implements Plugin<Project> {
         } else {
             throw new ProjectConfigurationException("The android or android-library plugin must be applied to the project", null)
         }
+
         def aptConfiguration = project.configurations.create('apt').extendsFrom(project.configurations.compile)
         def aptTestConfiguration = project.configurations.create('androidTestApt').extendsFrom(project.configurations.androidTestCompile)
+        def unitTestConfiguration = project.configurations.findByName('testCompile')
+        if (unitTestConfiguration) {
+            unitTestConfiguration = project.configurations.create('testAptCompile').extendsFrom(unitTestConfiguration)
+        }
+
         project.extensions.create("apt", AndroidAptExtension)
+
         project.afterEvaluate {
             project.android[variants].all { variant ->
-                configureVariant(project, variant, aptConfiguration)
+
+                if (unitTestConfiguration) {
+                    configureVariant(project, variant, aptConfiguration, unitTestConfiguration)
+                } else {
+                    configureVariant(project, variant, aptConfiguration)
+                }
+
                 if (variant.testVariant) {
                     configureVariant(project, variant.testVariant, aptTestConfiguration)
                 }
@@ -29,40 +46,67 @@ class AndroidAptPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureVariant(def project, def variant, def aptConfiguration) {
+    static void configureVariant(def project, def variant, Configuration aptConfiguration, Configuration... auxiliaryConfigurations) {
 
         if (aptConfiguration.empty) {
             // no apt dependencies, nothing to see here
             return;
         }
 
+        // This ensures, that generated code directory exists and can be seen in IDE
         def aptOutputDir = project.file(new File(project.buildDir, "generated/source/apt"))
         def aptOutput = new File(aptOutputDir, variant.dirName)
 
+        variant.javaCompile.doFirst {
+            aptOutput.mkdirs()
+        }
+
         variant.addJavaSourceFoldersToModel(aptOutput);
-        def processorPath = aptConfiguration.getAsPath();
 
-        variant.javaCompile.options.compilerArgs += [
-                '-processorpath', processorPath,
-                '-s', aptOutput
-        ]
-
+        // construct compiler arguments
         project.apt.aptArguments.variant = variant
         project.apt.aptArguments.project = project
         project.apt.aptArguments.android = project.android
 
-        def projectDependencies = aptConfiguration.allDependencies.withType(ProjectDependency.class)
-        // There must be a better way, but for now grab the tasks that produce some kind of archive and make sure those
-        // run before this javaCompile. Packaging makes sure that processor meta data is on the classpath
-        projectDependencies.each { p ->
-            def archiveTasks = p.dependencyProject.tasks.withType(AbstractArchiveTask.class)
-            archiveTasks.each { t -> variant.javaCompile.dependsOn t.path }
+        def processorPath = aptConfiguration
+        auxiliaryConfigurations.each { auxiliaryConfiguration ->
+            processorPath += auxiliaryConfiguration
+        }
+        processorPath = processorPath.getAsPath()
+
+        def bonusArgs = [
+                '-processorpath', processorPath,
+                '-s', aptOutput
+        ]
+        bonusArgs += project.apt.arguments()
+
+        // step 1: add options to the main compile task
+        variant.javaCompile.options.compilerArgs += bonusArgs
+
+        // step 2: find every JavaCompile, that may run after variant compile task during this invocation
+        // Let's assume, that those JavaCompile tasks too need our annotation processing
+        // (there really shouldn't be any side-affects, he-he-he-he)
+        project.gradle.taskGraph.whenReady {
+            project.tasks.withType(JavaCompile.class).each { JavaCompile compileTask ->
+                if (compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
+                    compileTask.options.compilerArgs += bonusArgs
+                }
+            }
         }
 
-        variant.javaCompile.options.compilerArgs += project.apt.arguments()
+        // Get all dependencies of our configurations (see below)
+        // Need new Set here, because FilteredSet is immutable
+        def projectDependencies = new HashSet()
+        projectDependencies.addAll(aptConfiguration.allDependencies.withType(ProjectDependency.class))
+        auxiliaryConfigurations.each { auxiliaryConfiguration ->
+            projectDependencies.addAll(auxiliaryConfiguration.allDependencies.withType(ProjectDependency.class))
+        }
 
-        variant.javaCompile.doFirst {
-            aptOutput.mkdirs()
+        // There must be a better way, but for now grab the tasks that produce some kind of archive and make sure those
+        // run before this javaCompile. Packaging makes sure that processor meta data is on the classpath
+        projectDependencies.each { ProjectDependency p ->
+            def archiveTasks = p.dependencyProject.tasks.withType(AbstractArchiveTask.class)
+            archiveTasks.each { t -> variant.javaCompile.dependsOn t.path }
         }
     }
 }
