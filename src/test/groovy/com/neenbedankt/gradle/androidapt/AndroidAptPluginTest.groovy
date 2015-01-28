@@ -1,5 +1,7 @@
 package com.neenbedankt.gradle.androidapt
 
+import java.util.concurrent.CountDownLatch;
+
 import org.gradle.api.Project
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.testfixtures.ProjectBuilder
@@ -113,12 +115,24 @@ class AndroidAptPluginTest {
             testAptCompile testProject
         }
 
+	def latch = new CountDownLatch(1)
+        p.gradle.taskGraph.whenReady {
+            p.android.applicationVariants.all { v ->
+                p.tasks.withType(JavaCompile.class).each { aTask ->
+                    if (aTask.taskDependencies.getDependencies(aTask).contains(variant.javaCompile)) {
+                        assert !aTask.javaCompile.options.compilerArgs.empty
+                    }
+                }
+                latch.countDown()
+            }
+        }
+
         p.evaluate()
+
         println "Variants"
         println p.configurations
+	println "Variants"
 
-        // no test for actual functionality, because still unsure, how come it ever works :(
-
-        println "Variants"
+	latch.countDown()
     }
 }

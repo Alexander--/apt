@@ -88,7 +88,8 @@ class AndroidAptPlugin implements Plugin<Project> {
         // (there really shouldn't be any side-affects, he-he-he-he)
         project.gradle.taskGraph.whenReady {
             project.tasks.withType(JavaCompile.class).each { JavaCompile compileTask ->
-                if (compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
+                if ((!variant.testVariant || compileTask != variant.testVariant.javaCompile)
+                        && compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
                     compileTask.options.compilerArgs += bonusArgs
                 }
             }
