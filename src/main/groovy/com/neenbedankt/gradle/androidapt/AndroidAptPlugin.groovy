@@ -72,12 +72,39 @@ class AndroidAptPlugin implements Plugin<Project> {
         auxiliaryConfigurations.each { auxiliaryConfiguration ->
             processorPath += auxiliaryConfiguration
         }
+
+        def processors = [] as Set
+
+        if (project.apt.excluded || project.apt.included) {
+            def urls = [] as Set<URL>
+
+            for (File pathElement:processorPath) {
+                // TODO: is there a better way?
+                if (pathElement.name.endsWith(".jar"))
+                    urls.add(pathElement.toURI().toURL())
+            }
+
+            def tsl = TrimmedServiceLoader.load(new URLClassLoader(urls.toArray(new URL[urls.size()])))
+            for (String processor:tsl) {
+                if (!project.apt.excluded?.contains(processor)) {
+                    processors.add(processor)
+                }
+            }
+            processors.addAll(project.apt.included)
+        }
+
         processorPath = processorPath.getAsPath()
 
         def bonusArgs = [
                 '-processorpath', processorPath,
                 '-s', aptOutput
         ]
+
+        if (!processors.empty) {
+            bonusArgs += '-processor'
+            bonusArgs += processors.join(',')
+        }
+
         bonusArgs += project.apt.arguments()
 
         // step 1: add options to the main compile task
@@ -87,9 +114,9 @@ class AndroidAptPlugin implements Plugin<Project> {
         // Let's assume, that those JavaCompile tasks too need our annotation processing
         // (there really shouldn't be any side-affects, he-he-he-he)
         project.gradle.taskGraph.whenReady {
-            project.tasks.withType(JavaCompile.class).each { JavaCompile compileTask ->
-                if ((!variant.testVariant || compileTask != variant.testVariant.javaCompile)
-                        && compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
+            project.tasks.withType(JavaCompile).each { JavaCompile compileTask ->
+                // TODO: do not handle test variants twice
+                if (compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
                     compileTask.options.compilerArgs += bonusArgs
                 }
             }
@@ -98,15 +125,15 @@ class AndroidAptPlugin implements Plugin<Project> {
         // Get all dependencies of our configurations (see below)
         // Need new Set here, because FilteredSet is immutable
         def projectDependencies = new HashSet()
-        projectDependencies.addAll(aptConfiguration.allDependencies.withType(ProjectDependency.class))
+        projectDependencies.addAll(aptConfiguration.allDependencies.withType(ProjectDependency))
         auxiliaryConfigurations.each { auxiliaryConfiguration ->
-            projectDependencies.addAll(auxiliaryConfiguration.allDependencies.withType(ProjectDependency.class))
+            projectDependencies.addAll(auxiliaryConfiguration.allDependencies.withType(ProjectDependency))
         }
 
         // There must be a better way, but for now grab the tasks that produce some kind of archive and make sure those
         // run before this javaCompile. Packaging makes sure that processor meta data is on the classpath
         projectDependencies.each { ProjectDependency p ->
-            def archiveTasks = p.dependencyProject.tasks.withType(AbstractArchiveTask.class)
+            def archiveTasks = p.dependencyProject.tasks.withType(AbstractArchiveTask)
             archiveTasks.each { t -> variant.javaCompile.dependsOn t.path }
         }
     }
