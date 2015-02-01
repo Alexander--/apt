@@ -115,7 +115,7 @@ class AndroidAptPluginTest {
             testAptCompile testProject
         }
 
-	def latch = new CountDownLatch(1)
+        def latch = new CountDownLatch(1)
         p.gradle.taskGraph.whenReady {
             p.android.applicationVariants.all { v ->
                 p.tasks.withType(JavaCompile.class).each { aTask ->
@@ -131,8 +131,38 @@ class AndroidAptPluginTest {
 
         println "Variants"
         println p.configurations
-	println "Variants"
+        println "Variants"
 
-	latch.countDown()
+        latch.countDown()
+    }
+
+    @Test
+    public void javaExcludeIncludeOk() {
+        Project root = ProjectBuilder.builder().build();
+        Project p = ProjectBuilder.builder().withParent(root).build()
+
+        p.apply plugin: 'java'
+        p.repositories {
+            mavenCentral()
+        }
+
+        p.apply plugin: 'android-apt'
+
+        p.dependencies {
+            // any annotation processor with ServiceLocator definition files would do
+            apt 'com.jakewharton:butterknife:5.1.2'
+            // anything without ServiceLocator definition files would do
+            apt 'org.checkerframework:checker:1.8.9'
+        }
+
+        p.apt {
+            excluded = [ 'butterknife.internal.ButterKnifeProcessor' ]
+            included = [ 'org.checkerframework.checker.fenum.FenumChecker' ]
+        }
+
+        p.evaluate()
+
+        assert p.compileJava.options.compilerArgs
+                .contains('org.checkerframework.checker.fenum.FenumChecker')
     }
 }

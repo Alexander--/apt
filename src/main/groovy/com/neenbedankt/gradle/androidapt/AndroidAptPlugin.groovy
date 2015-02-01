@@ -7,8 +7,10 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.invocation.Gradle
+import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.plugins.ide.idea.IdeaPlugin
 
 class AndroidAptPlugin implements Plugin<Project> {
     void apply(Project project) {
@@ -17,56 +19,112 @@ class AndroidAptPlugin implements Plugin<Project> {
             variants = "applicationVariants";
         } else if (project.plugins.findPlugin("com.android.library") || project.plugins.findPlugin("android-library")) {
             variants = "libraryVariants";
-        } else {
-            throw new ProjectConfigurationException("The android or android-library plugin must be applied to the project", null)
-        }
-
-        def aptConfiguration = project.configurations.create('apt').extendsFrom(project.configurations.compile)
-        def aptTestConfiguration = project.configurations.create('androidTestApt').extendsFrom(project.configurations.androidTestCompile)
-        def unitTestConfiguration = project.configurations.findByName('testCompile')
-        if (unitTestConfiguration) {
-            unitTestConfiguration = project.configurations.create('testAptCompile').extendsFrom(unitTestConfiguration)
+        } else if (!project.plugins.findPlugin("java")) {
+            throw new ProjectConfigurationException("Java, android or android-library plugin must be applied to the project", null)
         }
 
         project.extensions.create("apt", AndroidAptExtension)
 
+        def aptConfiguration = project.configurations.create('apt').extendsFrom(project.configurations.compile)
+        def unitTestConfiguration = project.configurations.findByName('testCompile')
+        if (unitTestConfiguration) {
+            unitTestConfiguration = project.configurations.create('testAptCompile').extendsFrom(unitTestConfiguration)
+        }
+        def androidTestConfiguration;
+        if (variants) {
+            androidTestConfiguration = project.configurations.create('androidTestApt').extendsFrom(project.configurations.androidTestCompile)
+        }
+
         project.afterEvaluate {
-            project.android[variants].all { variant ->
+            if (variants) {
+                project.android[variants].all { variant ->
+                    if (unitTestConfiguration) {
+                        configureAndroid(project, variant, aptConfiguration, unitTestConfiguration)
+                    } else {
+                        configureAndroid(project, variant, aptConfiguration)
+                    }
 
-                if (unitTestConfiguration) {
-                    configureVariant(project, variant, aptConfiguration, unitTestConfiguration)
-                } else {
-                    configureVariant(project, variant, aptConfiguration)
+                    if (variant.testVariant) {
+                        configureAndroid(project, variant.testVariant, androidTestConfiguration)
+                    }
                 }
-
-                if (variant.testVariant) {
-                    configureVariant(project, variant.testVariant, aptTestConfiguration)
+            } else {
+                if (unitTestConfiguration) {
+                    configureJava(project, aptConfiguration, unitTestConfiguration)
+                } else {
+                    configureJava(project, aptConfiguration)
                 }
             }
         }
     }
 
-    static void configureVariant(def project, def variant, Configuration aptConfiguration, Configuration... auxiliaryConfigurations) {
+    static void configureJava(Project project, Configuration aptConf, Configuration... auxConf) {
+        // This ensures, that generated code directory exists and can be seen in IDE
+        // $buildDir is excluded from pure java projects, so instead create generated source root
+        // ourselves and mark it as such for the IDE
+        File aptOutput = project.file(new File(project.projectDir, "generated/java"))
 
-        if (aptConfiguration.empty) {
-            // no apt dependencies, nothing to see here
-            return;
+        // TODO: do we want generated classes to be visible?
+        //def aptClassesOutput = project.file(new File(project.buildDir, "generated/classes"))
+
+        project.sourceSets.main.java.srcDirs += aptOutput
+
+        project.plugins.withType(IdeaPlugin) {
+            project.idea.module {
+                generatedSourceDirs += aptOutput
+            }
         }
 
+        project.tasks.create(name: 'cleanAptGeneratedSources', type: Delete) {
+            delete aptOutput
+        }
+
+        project.tasks.clean.dependsOn 'cleanAptGeneratedSources'
+
+        // process main compile task
+        JavaCompile compileTask = project.compileJava;
+        project.compileJava.source = project.compileJava.source.filter {
+            !it.path.startsWith(aptOutput.path)
+        }
+        configureJavaCompile(project, aptOutput, compileTask, aptConf, auxConf)
+    }
+
+    static void configureAndroid(Project project, def variant, Configuration aptConf, Configuration... auxConf) {
         // This ensures, that generated code directory exists and can be seen in IDE
+        // android projects store their generated code in generated/source
         def aptOutputDir = project.file(new File(project.buildDir, "generated/source/apt"))
         def aptOutput = new File(aptOutputDir, variant.dirName)
 
-        variant.javaCompile.doFirst {
-            aptOutput.mkdirs()
-        }
+        // TODO: do we want generated classes to be visible?
+        //aptOutputDir = project.file(new File(project.buildDir, "generated/classes/apt"))
+        //def aptClassesOutput = new File(aptOutputDir, variant.dirName)
 
         variant.addJavaSourceFoldersToModel(aptOutput);
 
         // construct compiler arguments
         project.apt.aptArguments.variant = variant
-        project.apt.aptArguments.project = project
         project.apt.aptArguments.android = project.android
+
+        // process main compile task
+        JavaCompile compileTask = variant.javaCompile;
+        configureJavaCompile(project, aptOutput, compileTask, aptConf, auxConf)
+    }
+
+    static void configureJavaCompile(Project project,
+                                     File aptOutput,
+                                     JavaCompile jcTask,
+                                     Configuration aptConfiguration,
+                                     Configuration... auxiliaryConfigurations) {
+        if (!auxiliaryConfigurations && aptConfiguration.empty) {
+            // no apt dependencies, nothing to see here
+            return;
+        }
+
+        jcTask.doFirst {
+            aptOutput.mkdirs()
+        }
+
+        project.apt.aptArguments.project = project
 
         def processorPath = aptConfiguration
         auxiliaryConfigurations.each { auxiliaryConfiguration ->
@@ -101,14 +159,14 @@ class AndroidAptPlugin implements Plugin<Project> {
         ]
 
         if (!processors.empty) {
-            bonusArgs += '-processor'
+            bonusArgs += "-processor"
             bonusArgs += processors.join(',')
         }
 
         bonusArgs += project.apt.arguments()
 
         // step 1: add options to the main compile task
-        variant.javaCompile.options.compilerArgs += bonusArgs
+        jcTask.options.compilerArgs += bonusArgs
 
         // step 2: find every JavaCompile, that may run after variant compile task during this invocation
         // Let's assume, that those JavaCompile tasks too need our annotation processing
@@ -116,7 +174,7 @@ class AndroidAptPlugin implements Plugin<Project> {
         project.gradle.taskGraph.whenReady {
             project.tasks.withType(JavaCompile).each { JavaCompile compileTask ->
                 // TODO: do not handle test variants twice
-                if (compileTask.taskDependencies.getDependencies(compileTask).contains(variant.javaCompile)) {
+                if (compileTask.taskDependencies.getDependencies(compileTask).contains(jcTask)) {
                     compileTask.options.compilerArgs += bonusArgs
                 }
             }
@@ -134,7 +192,7 @@ class AndroidAptPlugin implements Plugin<Project> {
         // run before this javaCompile. Packaging makes sure that processor meta data is on the classpath
         projectDependencies.each { ProjectDependency p ->
             def archiveTasks = p.dependencyProject.tasks.withType(AbstractArchiveTask)
-            archiveTasks.each { t -> variant.javaCompile.dependsOn t.path }
+            archiveTasks.each { t -> jcTask.dependsOn t.path }
         }
     }
 }

@@ -1,6 +1,11 @@
 package com.neenbedankt.gradle.androidapt
 
+import org.gradle.api.Project
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.testfixtures.ProjectBuilder
 import org.junit.Test
+
+import java.util.concurrent.CountDownLatch
 
 class AndroidAptExtensionTest {
     @Test
