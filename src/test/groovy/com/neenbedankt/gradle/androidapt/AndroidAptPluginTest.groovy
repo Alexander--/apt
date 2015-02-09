@@ -25,6 +25,7 @@ class AndroidAptPluginTest {
         Project testProject = ProjectBuilder.builder().withParent(root).build();
         testProject.apply plugin: 'java'
         Project p = ProjectBuilder.builder().withParent(root).build()
+	p.apply plugin: 'android-sdk-manager'
         p.apply plugin: 'com.android.application'
         p.apply plugin: 'android-apt'
         p.dependencies {
@@ -54,6 +55,7 @@ class AndroidAptPluginTest {
         Project testProject = ProjectBuilder.builder().withParent(root).build();
         testProject.apply plugin: 'java'
         Project p = ProjectBuilder.builder().withParent(root).build()
+	p.apply plugin: 'android-sdk-manager'
         p.apply plugin: 'com.android.application'
         p.apply plugin: 'android-apt'
         p.repositories {
@@ -91,6 +93,7 @@ class AndroidAptPluginTest {
         testProject.apply plugin: 'java'
         Project p = ProjectBuilder.builder().withParent(root).build()
 
+	p.apply plugin: 'android-sdk-manager'
         p.apply plugin: 'com.android.application'
         p.repositories {
             mavenCentral()
