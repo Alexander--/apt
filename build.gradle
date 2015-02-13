@@ -2,6 +2,12 @@ apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
+test {
+    testLogging {
+        exceptionFormat "full"
+    }
+}
+
 task wrapper (type:Wrapper) {
     gradleVersion = '2.2'
     distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
