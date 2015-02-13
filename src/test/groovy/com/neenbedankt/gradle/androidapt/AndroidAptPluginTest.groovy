@@ -111,7 +111,6 @@ class AndroidAptPluginTest {
             }
         }
 
-        p.apply plugin: 'android-unit-test'
         p.apply plugin: 'net.sf.gapt'
 
         p.dependencies {
