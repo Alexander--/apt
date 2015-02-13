@@ -20,7 +20,7 @@ class AndroidAptPlugin implements Plugin<Project> {
         } else if (project.plugins.findPlugin("com.android.library") || project.plugins.findPlugin("android-library")) {
             variants = "libraryVariants";
         } else if (!project.plugins.findPlugin("java")) {
-            throw new ProjectConfigurationException("Java, android or android-library plugin must be applied to the project", null)
+            throw new ProjectConfigurationException("'java', 'android' or 'android-library' plugin must be applied to the project", null)
         }
 
         project.extensions.create("apt", AndroidAptExtension)
@@ -63,30 +63,41 @@ class AndroidAptPlugin implements Plugin<Project> {
         // $buildDir is excluded from pure java projects, so instead create generated source root
         // ourselves and mark it as such for the IDE
         File aptOutput = project.file(new File(project.projectDir, "generated/java"))
+        File aptOutputForConf  = project.file(new File(project.projectDir, "generated-test/java"))
 
         // TODO: do we want generated classes to be visible?
         //def aptClassesOutput = project.file(new File(project.buildDir, "generated/classes"))
 
         project.sourceSets.main.java.srcDirs += aptOutput
+        project.sourceSets.test.java.srcDirs += aptOutputForConf
 
         project.plugins.withType(IdeaPlugin) {
             project.idea.module {
                 generatedSourceDirs += aptOutput
+                generatedSourceDirs += aptOutputForConf
             }
         }
 
         project.tasks.create(name: 'cleanAptGeneratedSources', type: Delete) {
             delete aptOutput
+            delete aptOutputForConf
         }
 
         project.tasks.clean.dependsOn 'cleanAptGeneratedSources'
 
-        // process main compile task
+        // process main and test compile tasks
         JavaCompile compileTask = project.compileJava;
-        project.compileJava.source = project.compileJava.source.filter {
+        compileTask.source = compileTask.source.filter {
             !it.path.startsWith(aptOutput.path)
         }
-        configureJavaCompile(project, aptOutput, compileTask, aptConf, auxConf)
+
+        JavaCompile testCompileTask = project.compileTestJava
+        testCompileTask.source = testCompileTask.source.filter {
+            !it.path.startsWith(aptOutputForConf.path)
+        }
+
+        configureJavaCompile(project, aptOutput, compileTask, aptConf)
+        configureJavaCompile(project, aptOutputForConf, testCompileTask, aptConf, auxConf)
     }
 
     static void configureAndroid(Project project, def variant, Configuration aptConf, Configuration... auxConf) {
