@@ -1,10 +1,9 @@
-apply plugin: 'groovy'
-apply plugin: 'maven'
-apply plugin: 'signing'
-
-test {
-    testLogging {
-        exceptionFormat "full"
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0'
     }
 }
 
@@ -13,8 +12,17 @@ task wrapper (type:Wrapper) {
     distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
 }
 
+apply plugin: 'groovy'
+
+test {
+    testLogging {
+        exceptionFormat "full"
+    }
+}
+
 repositories {
     mavenCentral()
+    //jcenter()
 }
 
 dependencies {
@@ -50,63 +58,7 @@ artifacts {
     archives sourcesJar
 }
 
-if (project.hasProperty("signing.keyId")) {
-    signing {
-        sign configurations.archives
-    }
-}
-
-uploadArchives {
-    repositories {
-        mavenDeployer {
-
-            beforeDeployment { deployment -> signing.signPom(deployment) }
-
-            if (project.hasProperty('sonatypeUsername')) {
-                snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots") {
-                    authentication(userName: sonatypeUsername, password: sonatypePassword)
-                }
-
-                repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2") {
-                    authentication(userName: sonatypeUsername, password: sonatypePassword)
-                }
-            }
-            uniqueVersion = false
-
-            pom.project {
-
-                parent {
-                    groupId 'org.sonatype.oss'
-                    artifactId 'oss-parent'
-                    version '7'
-                }
-
-                name 'Gradle apt plugin'
-                packaging 'jar'
-                description 'A Gradle plugin that ensures Android Studio will pick up generated source from annotation processors and provides an apt configuration for them.'
-                url 'http://gapt.sf.net/'
-
-                scm {
-                    url 'https://github.com/Alexander--/apt'
-                    connection 'scm:git:https://github.com/Alexander--/apt.git'
-                    developerConnection 'scm:git:https://github.com/Alexander--/apt.git'
-                }
-
-                licenses {
-                    license {
-                        name 'Unlicense'
-                        url 'http://unlicense.org/UNLICENSE'
-                        distribution 'repo'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'alexander'
-                        name 'AlexanderR'
-                    }
-                }
-            }
-        }
-    }
+def maintGradleScript = file("$projectDir/deployment.gradle")
+if (maintGradleScript.exists()) {
+    apply from: maintGradleScript
 }

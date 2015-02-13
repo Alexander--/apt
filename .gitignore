@@ -31,7 +31,7 @@ classes
 *.apk
 /*.log
 /logs/*
-smartbalance/mapping.txt
+deployment.gradle
 
 # misc
 Thumbs.db

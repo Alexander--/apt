@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/Alexander--/apt.svg?branch=fork-beginning)](https://travis-ci.org/Alexander--/apt)
+
+[![Download](https://api.bintray.com/packages/alexanderr/maven/gradle-apt/images/download.svg)](https://bintray.com/alexanderr/maven/gradle-apt/_latestVersion)
+
 What is this?
 ---------------
 
