@@ -102,7 +102,7 @@ uploadArchives {
 
                 developers {
                     developer {
-                        id 'hvisser'
+                        id 'alexander'
                         name 'AlexanderR'
                     }
                 }
