@@ -1,31 +1,35 @@
 What is this?
 ---------------
-The android-apt plugin assists in working with annotation processors in combination with Android Studio. It has two purposes:
+The Gradle apt plugin assists in working with Java [annotation processors][11]. It has two primary purposes:
 
 * Allow to configure a compile time only annotation processor as a dependency, not including the artifact in the final APK or library
-* Set up the source paths so that code that is generated from the annotation processor is correctly picked up by Android Studio.
+* Set up the source paths so that code that is generated from the annotation processor is correctly picked up by IDEs.
 
-This plugin requires the `android` or `android-library` plugin (version 0.9.x or up) to be configured on your project.
+Additionally, it works around various corner cases, that may prevent annotation processors from working (such as when
+you bundle an annotation processor as `project` depenency).
+
+This plugin requires one of `android`, `android-library` or `java` plugins to be configured on your project. Version 1.x of Androdi plugin
+is supported, but older version may work too.
 
 Including and using the plugin in your build script
 ---------------------------------------------------
 Add the following to your build script to use the plugin:
-```
-#!groovy
+
+```groovy
 buildscript {
     repositories {
       mavenCentral()
     }
     dependencies {
         // replace with the current version of the Android plugin
-        classpath 'com.android.tools.build:gradle:0.14.4'
-        // the latest version of the android-apt plugin
-        classpath 'com.neenbedankt.gradle.plugins:android-apt:1.4'
+        classpath 'com.android.tools.build:gradle:${andrpodPluginVersion}'
+        // the latest version of the Gradle apt plugin
+        classpath 'net.sf.gapt:gapt:${gradleAptVersion}'
     }
 }
 
 apply plugin: 'com.android.application'
-apply plugin: 'com.neenbedankt.android-apt'
+apply plugin: 'net.sf.gapt' // apply after other plugins to minimize conflicts
 ```
 
 Passing processor arguments
@@ -33,8 +37,7 @@ Passing processor arguments
 Some annotation processor may require to pass custom arguments, you can use `apt.arguments` for that purpose.
 For instance AndroidAnnotations needs the following configuration:
 
-```
-#!groovy
+```groovy
 apt {
     arguments {
             resourcePackageName android.defaultConfig.packageName
@@ -48,50 +51,99 @@ The arguments are processed for each variant when the compiler is configured. Fr
 
 Configurating a compiler style dependency
 -----------------------------------------
-Annotation processors generally have a API and a processor that generates code that is used by the API. Depending on the project the processor and the API might be split up in separate dependencies. For example, [Dagger][1] uses two artifacts called _dagger-compiler_ and _dagger_. The compiler artifact is only used during compilation, while the main _dagger_ artifact is required at runtime.
+Annotation processors generally have an API and a processor that generates code that is used by the API. Depending on the project the processor and the API might be split up in separate dependencies. For 
+example, [Dagger][1] uses two artifacts called _dagger-compiler_ and _dagger_. The compiler artifact is only used during compilation, while the main _dagger_ artifact is required at runtime.
 
 To aid in configuring this dependency, the plugin adds a Gradle [configuration][2] named **apt** that can be used like this:
 
-```
-#!groovy
+```groovy
 dependencies {
  apt 'com.squareup.dagger:dagger-compiler:1.1.0'
  compile 'com.squareup.dagger:dagger:1.1.0'
 }
 ```
 
-Note that in most cases you should probably use the `provided` configuration that was introduced in version 0.8.0 of the android plugin.
+Note that you should often be able to use the `provided` configuration for API artefacts:
 
-If your test code requires generated code to be visible in Android Studio, you can use the `androidTestApt` configuration:
-
+```groovy
+dependencies {
+ apt 'com.github.hamsterksu:android-annotatedsql-processor:1.10.3'
+ provided 'com.github.hamsterksu:android-annotatedsql-api:1.10.3'
+}
 ```
-#!groovy
+
+This is typically the case when an API consists from annotation only, see also [https://stackoverflow.com/q/3567413](this Stack Overflow quesion).
+
+Java project support
+--------------------------------------------
+Gradle apt plugin supports pure Java projects (as provided by 'java Gradle plugin') as well as Android projects. Note, that this support is still
+in developement, so report an issue if some feature or some of your plugins happens to be incompatible with it.
+
+Tests support
+--------------------------------------------
+To perform annotation processing in Android integration tests use the `androidTestApt` configuration:
+
+```groovy
 dependencies {
  androidTestApt 'com.github.frankiesardo:android-auto-value-processor:0.1'
  androidTestCompile 'com.github.frankiesardo:android-auto-value:0.1'
 }
 ```
 
+Unit tests are supported by testAptCompile configuration, both for Java and Android projects (in later case you may need additional plugin, such
+as [android-unit-test][]):
+
+```groovy
+dependencies {
+ testAptCompile 'com.google.dagger:dagger-compiler:2.+'
+ testCompile 'com.google.dagger:dagger:2.+'
+}
+```
+
+Generated code placement
+--------------------------------------------
+The generated code is in `buid/build/generated/source/apt` for Android projects and
+`generated` and `generated-test` for Java projects. This code is removed during clean task,
+and sometimes you have to perform full rebuild to avoid errors (the reason for that is currently being investigated).
+
 Configuration of other annotation processors
 --------------------------------------------
 For annotation processors that include the API and processor in one artifact, there's no special setup. You just add the artifact to the _compile_ configuration like usual and everything will work like normal. Additionally, if code that is generated by the processor is to be referenced in your own code, Android Studio will now correctly reference that code and resolve references to it.
 
-[1]:http://square.github.io/dagger
-[2]:http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+If you want to include processors, that aren't declared in jar's `META-INF` (such as Checker Framework processors), use `included`, for exclusion of processors use `excluded`:
+
+```
+apt {
+ ...
+
+ included = [ 'org.checkerframework.checker.fenum.FenumChecker' ]
+
+ ...
+}
+```
+
+You can use both, one or none.
 
 History & Credits
 ---------------
+This plugin is a fork of the [android-apt][9]. It was created due to low responsiveness and lack of developement incetive on part of initial maintainer. Here is original "credits" text from
+android-apt README:
+
+
 This plugin is based on a [script][6] that I've been using for some time which is the result of [this post on Google+][7] and [this post on StackOverflow.com][8].
 Variations of the SO post and my gists have been floating around for a while on the interwebs. That, and the fact that including scripts is a bit inconvenient pushed me to create this plugin.
 
+
 License
 -------
-This plugin is created by Hugo Visser and released in the [public domain][3]. Feel free to use and adapt as you like.
-To get in touch, hit me up on [Twitter][4] or [Google Plus][5].
+This plugin is released in the [public domain][3]. Feel free to use and adapt as you like. Use [Guthub issue tracker][10] to report bugs and request new features.
 
+[1]:http://square.github.io/dagger
+[2]:http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
 [3]:http://unlicense.org/
-[4]:https://twitter.com/botteaap
-[5]:https://google.com/+hugovisser
 [6]:https://bitbucket.org/qbusict/android-gradle-scripts/src/686ce2301245ab1f0e6a32fb20b4d246ef742223/annotations.groovy?at=default
 [7]:https://plus.google.com/+HugoVisser/posts/VtGYV8RHwmo
 [8]:http://stackoverflow.com/questions/16683944/androidannotations-nothing-generated-empty-activity
+[9]:https://bitbucket.org/hvisser/android-apt/
+[10]:https://github.com/Alexander--/apt/issues
+[11]:http://docs.oracle.com/javase/7/docs/technotes/guides/apt/

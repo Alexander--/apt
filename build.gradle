@@ -4,6 +4,7 @@ apply plugin: 'signing'
 
 task wrapper (type:Wrapper) {
     gradleVersion = '2.2'
+    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
 }
 
 repositories {
@@ -19,15 +20,15 @@ dependencies {
     testCompile 'com.github.jcandksolutions.gradle:android-unit-test:2.1.1'
 }
 
-version = "1.4"
+version = "1" // +android-apt.1.4
 
 ext {
     sourceCompatibility = 1.6
     targetCompatibility = 1.6
-    artifactId = 'android-apt'
+    artifactId = 'gapt'
 }
 
-group = 'com.neenbedankt.gradle.plugins'
+group = 'net.sf.gapt'
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
@@ -76,15 +77,15 @@ uploadArchives {
                     version '7'
                 }
 
-                name 'Gradle android-apt plugin'
+                name 'Gradle apt plugin'
                 packaging 'jar'
-                description 'A Gradle plugin that ensures Android Studio will pick up generated source from annotation processors and provides an apt configuration for excluding annotation processors from runtime dependencies.'
-                url 'https://bitbucket.org/hvisser/android-apt'
+                description 'A Gradle plugin that ensures Android Studio will pick up generated source from annotation processors and provides an apt configuration for them.'
+                url 'http://gapt.sf.net/'
 
                 scm {
-                    url 'https://bitbucket.org/hvisser/android-apt'
-                    connection 'scm:hg:https://bitbucket.org/hvisser/android-apt'
-                    developerConnection 'scm:hg:https://bitbucket.org/hvisser/android-apt'
+                    url 'https://github.com/Alexander--/apt'
+                    connection 'scm:git:https://github.com/Alexander--/apt.git'
+                    developerConnection 'scm:git:https://github.com/Alexander--/apt.git'
                 }
 
                 licenses {
@@ -98,7 +99,7 @@ uploadArchives {
                 developers {
                     developer {
                         id 'hvisser'
-                        name 'Hugo Visser'
+                        name 'AlexanderR'
                     }
                 }
             }

@@ -13,7 +13,7 @@ class AndroidAptPluginTest {
     public void testRequireAndroidPlugin() {
         Project project = ProjectBuilder.builder().build()
         try {
-            project.apply plugin: 'android-apt'
+            project.apply plugin: 'net.sf.gapt'
             fail();
         } catch (expected) {
         }
@@ -27,7 +27,7 @@ class AndroidAptPluginTest {
         Project p = ProjectBuilder.builder().withParent(root).build()
 	p.apply plugin: 'android-sdk-manager'
         p.apply plugin: 'com.android.application'
-        p.apply plugin: 'android-apt'
+        p.apply plugin: 'net.sf.gapt'
         p.dependencies {
             apt testProject
         }
@@ -57,7 +57,7 @@ class AndroidAptPluginTest {
         Project p = ProjectBuilder.builder().withParent(root).build()
 	p.apply plugin: 'android-sdk-manager'
         p.apply plugin: 'com.android.application'
-        p.apply plugin: 'android-apt'
+        p.apply plugin: 'net.sf.gapt'
         p.repositories {
             mavenCentral()
         }
@@ -112,7 +112,7 @@ class AndroidAptPluginTest {
         }
 
         p.apply plugin: 'android-unit-test'
-        p.apply plugin: 'android-apt'
+        p.apply plugin: 'net.sf.gapt'
 
         p.dependencies {
             testAptCompile testProject
@@ -149,7 +149,7 @@ class AndroidAptPluginTest {
             mavenCentral()
         }
 
-        p.apply plugin: 'android-apt'
+        p.apply plugin: 'net.sf.gapt'
 
         p.dependencies {
             // any annotation processor with ServiceLocator definition files would do
