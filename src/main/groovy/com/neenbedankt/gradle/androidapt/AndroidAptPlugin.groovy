@@ -15,15 +15,15 @@ import org.gradle.plugins.ide.idea.IdeaPlugin
 class AndroidAptPlugin implements Plugin<Project> {
     void apply(Project project) {
         def variants = null;
-        if (project.plugins.findPlugin("com.android.application") || project.plugins.findPlugin("android")) {
-            variants = "applicationVariants";
-        } else if (project.plugins.findPlugin("com.android.library") || project.plugins.findPlugin("android-library")) {
-            variants = "libraryVariants";
-        } else if (!project.plugins.findPlugin("java")) {
+        if (project.plugins.findPlugin('com.android.application') || project.plugins.findPlugin('android')) {
+            variants = 'applicationVariants';
+        } else if (project.plugins.findPlugin('com.android.library') || project.plugins.findPlugin('android-library')) {
+            variants = 'libraryVariant';
+        } else if (!project.plugins.findPlugin('java')) {
             throw new ProjectConfigurationException("'java', 'android' or 'android-library' plugin must be applied to the project", null)
         }
 
-        project.extensions.create("apt", AndroidAptExtension)
+        project.extensions.create('apt', AndroidAptExtension)
 
         def aptConfiguration = project.configurations.create('apt').extendsFrom(project.configurations.compile)
         def unitTestConfiguration = project.configurations.findByName('testCompile')
@@ -62,8 +62,8 @@ class AndroidAptPlugin implements Plugin<Project> {
         // This ensures, that generated code directory exists and can be seen in IDE
         // $buildDir is excluded from pure java projects, so instead create generated source root
         // ourselves and mark it as such for the IDE
-        File aptOutput = project.file(new File(project.projectDir, "generated/java"))
-        File aptOutputForConf  = project.file(new File(project.projectDir, "generated-test/java"))
+        File aptOutput = project.file(new File(project.projectDir, 'src/main/java-generated'))
+        File aptOutputForConf  = project.file(new File(project.projectDir, 'src/test/java-generated'))
 
         // TODO: do we want generated classes to be visible?
         //def aptClassesOutput = project.file(new File(project.buildDir, "generated/classes"))
@@ -103,7 +103,7 @@ class AndroidAptPlugin implements Plugin<Project> {
     static void configureAndroid(Project project, def variant, Configuration aptConf, Configuration... auxConf) {
         // This ensures, that generated code directory exists and can be seen in IDE
         // android projects store their generated code in generated/source
-        def aptOutputDir = project.file(new File(project.buildDir, "generated/source/apt"))
+        def aptOutputDir = project.file(new File(project.buildDir, 'generated/source/apt'))
         def aptOutput = new File(aptOutputDir, variant.dirName)
 
         // TODO: do we want generated classes to be visible?
@@ -149,7 +149,7 @@ class AndroidAptPlugin implements Plugin<Project> {
 
             for (File pathElement:processorPath) {
                 // TODO: is there a better way?
-                if (pathElement.name.endsWith(".jar"))
+                if (pathElement.name.endsWith('.jar'))
                     urls.add(pathElement.toURI().toURL())
             }
 
@@ -170,7 +170,7 @@ class AndroidAptPlugin implements Plugin<Project> {
         ]
 
         if (!processors.empty) {
-            bonusArgs += "-processor"
+            bonusArgs += '-processor'
             bonusArgs += processors.join(',')
         }
 

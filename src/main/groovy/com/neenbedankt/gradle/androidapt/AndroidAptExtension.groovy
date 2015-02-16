@@ -1,12 +1,12 @@
 package com.neenbedankt.gradle.androidapt
 
 class AndroidAptExtension {
-    final def aptArguments = new AptArguments()
+    final AptArguments aptArguments = new AptArguments()
 
     private def argsClosure;
 
-    def excluded;
-    def included;
+    def excluded = []
+    def included = []
 
     def arguments(Closure closure) {
         closure.resolveStrategy = Closure.DELEGATE_FIRST
